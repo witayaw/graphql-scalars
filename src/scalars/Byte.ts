@@ -11,25 +11,27 @@ import {
 type BufferJson = { type: 'Buffer'; data: number[] };
 const base64Validator =
   /^(?:[A-Za-z0-9+\/]{4})*(?:[A-Za-z0-9+\/]{2}==|[A-Za-z0-9+\/]{3}=)?$/;
-function hexValidator(value: string) {
-  // Ensure that any leading 0 is removed from the hex string to avoid false negatives.
-  const sanitizedValue = value.charAt(0) === '0' ? value.slice(1) : value;
-  // For larger strings, we run into issues with MAX_SAFE_INTEGER, so split the string
-  // into smaller pieces to avoid this issue.
-  if (value.length > 8) {
-    let parsedString = '';
-    for (
-      let startIndex = 0, endIndex = 8;
-      startIndex < value.length;
-      startIndex += 8, endIndex += 8
-    ) {
-      parsedString += parseInt(value.slice(startIndex, endIndex), 16).toString(
-        16,
-      );
-    }
-    return parsedString === sanitizedValue;
+const hexValidator = /^([0-9a-fA-F]{2})+$/;
+
+function hexValidate(value: string) {
+  const isHex = hexValidator.test(value);
+  if (isHex) {
+    return global.Buffer.from(value, 'hex');
   }
-  return parseInt(value, 16).toString(16) === sanitizedValue;
+  return null;
+}
+
+function base64Validate(value: string) {
+  // console.log('base64Validate');
+  const isBase64 = base64Validator.test(value);
+
+  if (isBase64) {
+    // console.log('base64 is valid');
+    return global.Buffer.from(value, 'base64');
+    // return null;
+  }
+  // console.log('isBase64: ', isBase64);
+  return null;
 }
 
 function validate(value: Buffer | string | BufferJson) {
@@ -39,18 +41,17 @@ function validate(value: Buffer | string | BufferJson) {
     );
   }
   if (typeof value === 'string') {
-    const isBase64 = base64Validator.test(value);
-    const isHex = hexValidator(value);
-    if (!isBase64 && !isHex) {
+    const retValue = hexValidate(value) ?? base64Validate(value);
+    // console.log('retValue :', retValue);
+    if (!retValue) {
       throw new TypeError(
         `Value is not a valid base64 or hex encoded string: ${JSON.stringify(
           value,
         )}`,
       );
     }
-    return global.Buffer.from(value, isHex ? 'hex' : 'base64');
+    return retValue as Buffer;
   }
-
   return value;
 }
 
